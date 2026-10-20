@@ -5,16 +5,13 @@ const { Pool, types } = require('pg');
 types.setTypeParser(1700, v => (v === null ? null : parseFloat(v))); // NUMERIC
 types.setTypeParser(20, v => (v === null ? null : parseInt(v, 10)));  // BIGINT (COUNT, SUM de enteros)
 
+// Usamos connectionString para mayor compatibilidad con Render
 const pool = new Pool({
-  host: process.env.PGHOST,
-  port: Number(process.env.PGPORT) || 5432,
-  database: process.env.PGDATABASE,
-  user: process.env.PGUSER,
-  password: process.env.PGPASSWORD,
-  ssl: { rejectUnauthorized: false }, // 🔐 LÍNEA AGREGADA PARA RENDER
-  max: 10,
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }, // 🔐 OBLIGATORIO para Render
+  connectionTimeoutMillis: 10000,      // ⏱️ 10s de espera
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000
+  max: 10
 });
 
 pool.on('error', err => console.error('❌ Error inesperado en el pool de PostgreSQL:', err.message));
