@@ -11,6 +11,7 @@ const pool = new Pool({
   database: process.env.PGDATABASE,
   user: process.env.PGUSER,
   password: process.env.PGPASSWORD,
+  ssl: { rejectUnauthorized: false }, // 🔐 LÍNEA AGREGADA PARA RENDER
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000
