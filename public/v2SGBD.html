@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dulce Encanto · Sistema de gestión</title>
+
+  <!-- Aplica el tema guardado ANTES de pintar la página (evita el destello blanco en modo oscuro) -->
+  <script>
+    (() => {
+      try {
+        const t = localStorage.getItem('dulceEncanto.tema')
+          || (matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro');
+        document.documentElement.dataset.tema = t;
+      } catch { document.documentElement.dataset.tema = 'claro'; }
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="SGBD.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <!-- Exportación a PDF real (html2canvas + jsPDF empaquetados) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+  <script src="SGBD.js" defer></script>
+</head>
+<body>
+
+<!-- LOGIN (RF-12) -->
+<section id="login">
+  <form id="form-login" class="card login-card">
+    <div class="logo">Dulce <span>Encanto</span></div>
+    <p class="muted">Sistema de gestión para repostería</p>
+    <input name="user" placeholder="Usuario" autocomplete="username" required>
+    <input name="pass" type="password" placeholder="Contraseña" autocomplete="current-password" required>
+    <button class="btn primary">Ingresar</button>
+    <p class="hint">Demo: admin/Admin2026! · cajero/Cajero2026!<br>repostero/Repostero2026! · cliente/Cliente2026!</p>
+  </form>
+</section>
+
+<!-- APLICACIÓN -->
+<div id="app" hidden>
+  <aside>
+    <div class="logo sm">Dulce <span>Encanto</span></div>
+    <nav id="menu">
+      <button data-v="dashboard">📊 Dashboard</button>
+      <button data-v="productos">🧁 Productos</button>
+      <button data-v="inventario">📦 Inventario</button>
+      <button data-v="ventas">💰 Ventas</button>
+      <button data-v="pedidos">📋 Pedidos<span class="contador" id="cnt-pedido" hidden></span></button>
+      <button data-v="agenda">🗓️ Agenda</button>
+      <button data-v="clientes">🙋 Clientes</button>
+      <button data-v="reportes">📈 Reportes</button>
+      <button data-v="usuarios">👥 Usuarios</button>
+    </nav>
+    <button class="link" data-a="logout">Cerrar sesión</button>
+  </aside>
+
+  <main>
+    <header>
+      <h1 id="titulo"></h1>
+      <div class="header-der">
+        <div id="quien"></div>
+        <button id="btn-tema" class="btn-tema" data-a="tema" type="button" aria-label="Activar modo oscuro" title="Cambiar tema">
+          <span class="icono">🌙</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Dashboard -->
+    <section id="v-dashboard" class="vista">
+      <div class="kpis" id="kpis"></div>
+      <div class="grid2">
+        <div class="card"><h3>Ventas de los últimos 7 días</h3><canvas id="c-sem"></canvas></div>
+        <div class="card"><h3>Productos más vendidos</h3><canvas id="c-top"></canvas></div>
+      </div>
+    </section>
+
+    <!-- Productos: RF-01, RF-02, RF-13 · Catálogo visual para el rol cliente -->
+    <section id="v-productos" class="vista">
+      <form id="f-producto" class="card admin-only">
+        <h3>Registrar o editar producto</h3>
+        <div class="frm">
+          <input type="hidden" name="pid">
+          <input name="nombre" placeholder="Nombre" maxlength="60" required>
+          <input name="precio" type="number" min="1" step="any" placeholder="Precio" required>
+          <input name="categoria" placeholder="Categoría" maxlength="30" required>
+          <input name="min" type="number" min="0" value="3" title="Stock mínimo" required>
+          <button class="btn primary" id="btn-prod">Agregar producto</button>
+        </div>
+      </form>
+
+      <div class="card">
+        <input id="q" list="sug" placeholder="🔍 Buscar por nombre o categoría…" autocomplete="off">
+        <datalist id="sug"></datalist>
+
+        <!-- Personal: tabla tradicional -->
+        <div class="tabla-wrap solo-personal">
+          <table>
+            <thead><tr><th>ID</th><th>Nombre</th><th>Categoría</th><th>Precio</th><th>Stock</th><th class="admin-only">Acciones</th></tr></thead>
+            <tbody id="t-prod"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Cliente: catálogo en tarjetas -->
+      <div id="catalogo" class="catalogo solo-cliente"></div>
+    </section>
+
+    <!-- Inventario: RF-03, RF-04, RF-14 -->
+    <section id="v-inventario" class="vista">
+      <div class="grid2">
+        <form id="f-entrada" class="card">
+          <h3>Entrada de producto terminado</h3>
+          <div class="frm">
+            <select name="pid" id="i-prod"></select>
+            <input name="cant" type="number" min="1" placeholder="Cantidad que ingresa" required>
+            <button class="btn primary">Registrar entrada</button>
+          </div>
+        </form>
+        <form id="f-entrada-insumo" class="card">
+          <h3>Compra de insumos (materia prima)</h3>
+          <div class="frm">
+            <select name="iid" id="ii-ins"></select>
+            <input name="cant" type="number" min="0.001" step="any" placeholder="Cantidad que ingresa" required>
+            <button class="btn primary">Registrar compra</button>
+          </div>
+        </form>
+      </div>
+      <div class="grid2">
+        <div class="card"><h3>Alertas de productos</h3><div id="alertas"></div></div>
+        <div class="card"><h3>Alertas de insumos</h3><div id="alertas-insumos"></div></div>
+      </div>
+    </section>
+
+    <!-- Ventas: RF-05, RF-06 -->
+    <section id="v-ventas" class="vista">
+      <div class="grid2">
+        <div class="card">
+          <h3>Nueva venta</h3>
+          <form id="f-carrito" class="frm">
+            <select name="pid" id="v-prod"></select>
+            <input name="cant" type="number" min="1" value="1" required>
+            <button class="btn sec">Agregar al carrito</button>
+          </form>
+          <div id="carrito"></div>
+          <form id="f-venta">
+            <input name="cliente" list="dl-clientes" placeholder="Cliente (opcional)">
+            <select name="metodo_pago" aria-label="Método de pago" style="margin-top:10px" required>
+              <option value="Efectivo">💵 Efectivo</option>
+              <option value="Tarjeta">💳 Tarjeta</option>
+              <option value="Transferencia">📲 Transferencia</option>
+            </select>
+            <div class="ln total"><span>Total</span><span id="total">$0</span></div>
+            <button class="btn primary block">Finalizar venta y generar recibo</button>
+          </form>
+        </div>
+        <div class="card">
+          <h3>Recibo</h3>
+          <div id="recibo" class="ticket"><p class="muted c">El recibo aparecerá aquí.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pedidos: RF-07, RF-08 -->
+    <section id="v-pedidos" class="vista">
+      <form id="f-pedido" class="card">
+        <h3>Nuevo pedido</h3>
+        <!-- Productos elegidos en el catálogo (solo rol cliente) -->
+        <div id="pe-items" class="pedido-items solo-cliente"></div>
+        <div class="frm">
+          <input name="cliente" id="pe-cliente" list="dl-clientes" placeholder="Cliente" required>
+          <input name="fecha" type="datetime-local" required>
+          <input name="detalle" id="pe-detalle" placeholder="Detalle (ej. torta de 20 porciones)" maxlength="120">
+          <button class="btn primary">Crear pedido</button>
+        </div>
+      </form>
+      <div class="card">
+        <h3>Pedidos pendientes y en curso</h3>
+        <div class="tabla-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Cliente</th><th>Entrega</th><th>Detalle</th><th>Estado</th><th class="solo-personal">Aviso</th></tr></thead>
+            <tbody id="t-ped"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Agenda de producción: RF-15 -->
+    <section id="v-agenda" class="vista"><div id="lista-agenda" class="pila"></div></section>
+
+    <!-- Clientes e historial: RF-09 -->
+    <section id="v-clientes" class="vista"><div id="lista-clientes" class="pila"></div></section>
+
+    <!-- Reportes: RF-10 -->
+    <section id="v-reportes" class="vista">
+      <div class="card frm no-print">
+        <select id="periodo">
+          <option value="dia">Ventas diarias</option>
+          <option value="semana">Ventas semanales</option>
+          <option value="mes">Ventas mensuales</option>
+        </select>
+        <button class="btn sec" data-a="pdf" type="button">📄 Descargar PDF</button>
+      </div>
+      <div class="card"><h3>Ventas por periodo</h3><canvas id="c-rep"></canvas></div>
+      <div class="card">
+        <div class="tabla-wrap">
+          <table>
+            <thead><tr><th>Periodo</th><th>Ventas</th><th>Total</th><th>Efectivo</th><th>Tarjeta</th><th>Transferencia</th></tr></thead>
+            <tbody id="t-rep"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Usuarios y roles: RF-11 -->
+    <section id="v-usuarios" class="vista">
+      <form id="f-usuario" class="card">
+        <h3>Crear usuario</h3>
+        <div class="frm">
+          <input name="user" placeholder="Usuario" maxlength="30" required>
+          <input name="pass" type="password" placeholder="Contraseña (mínimo 8)" minlength="8" autocomplete="new-password" required>
+          <select name="rol">
+            <option value="admin">Administrador</option>
+            <option value="cajero">Cajero</option>
+            <option value="repostero">Repostero</option>
+            <option value="cliente">Cliente</option>
+          </select>
+          <button class="btn primary">Crear usuario</button>
+        </div>
+      </form>
+      <div class="card">
+        <div class="tabla-wrap">
+          <table>
+            <thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead>
+            <tbody id="t-usr"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<datalist id="dl-clientes"></datalist>
+<div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
